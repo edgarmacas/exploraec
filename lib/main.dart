@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import 'bindings/places_binding.dart';
+import 'controllers/places_controller.dart';
+import 'i18n/app_translations.dart';
 import 'screens/home_screen.dart';
 import 'screens/map_placeholder_screen.dart';
 import 'screens/favorites_placeholder_screen.dart';
@@ -8,25 +13,25 @@ void main() {
   runApp(const ExploraEcApp());
 }
 
+/// `MaterialApp` → `GetMaterialApp` — Sesión 4. Sigue siendo Material por
+/// debajo (mismo `theme`, mismos widgets); `GetMaterialApp` agrega encima
+/// la navegación de GetX (`Get.to`, usada desde esta sesión en `PlaceCard`
+/// y `AddPlaceScreen`) y `initialBinding`, que registra `PlacesController`
+/// una sola vez, antes de que cualquier pantalla lo necesite.
 class ExploraEcApp extends StatelessWidget {
   const ExploraEcApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'ExploraEC',
-      // TODO(sesion-03): borra la línea de abajo y descomenta el bloque completo. (Paso 1 — aplicar el tema)
-      // Por qué: ThemeData(useMaterial3: true) es el tema genérico de
-      // Flutter — AppTheme.theme aplica la paleta de colores, tipografía
-      // y espaciado propios de ExploraEC en toda la app de una sola vez,
-      // sin tener que repetir estilos pantalla por pantalla.
       theme: AppTheme.theme,
-      // TODO(sesion-03): OPCIONAL — descomenta las dos líneas de abajo (Paso 6 — modo oscuro). No borres nada.
-      // Por qué: darkTheme le da a MaterialApp una segunda paleta, y
-      // ThemeMode.system elige entre las dos según la preferencia del
-      // dispositivo (Ajustes → Pantalla → Tema oscuro), sin código extra.
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
+      translations: AppTranslations(),
+      locale: const Locale('es', 'EC'),
+      fallbackLocale: const Locale('es', 'EC'),
+      initialBinding: PlacesBinding(),
       home: const RootShell(),
     );
   }
@@ -54,10 +59,20 @@ class _RootShellState extends State<RootShell> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _indiceActual,
         onTap: (i) => setState(() => _indiceActual = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Mapa'),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favoritos'),
+        items: [
+          BottomNavigationBarItem(icon: const Icon(Icons.home), label: 'inicio'.tr),
+          BottomNavigationBarItem(icon: const Icon(Icons.map), label: 'mapa'.tr),
+          BottomNavigationBarItem(
+            icon: Obx(() {
+              final total = Get.find<PlacesController>().totalFavoritos;
+              return Badge.count(
+                count: total,
+                isLabelVisible: total > 0,
+                child: const Icon(Icons.favorite),
+              );
+            }),
+            label: 'favoritos'.tr,
+          ),
         ],
       ),
     );
