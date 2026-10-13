@@ -5,6 +5,7 @@ import '../controllers/places_controller.dart';
 import '../models/place.dart';
 import '../screens/detail_screen.dart';
 import '../theme/app_theme.dart';
+import '../services/location_service.dart';
 
 /// Tarjeta reutilizable que representa un [Place] en cualquier lista de
 /// la app (Inicio, resultados de categoría, etc.) — Sesión 2.
@@ -78,6 +79,20 @@ class PlaceCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(place.categoria, style: estilos.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                Obx(() {
+                  final metros = Get.find<PlacesController>().distanciaA(place);
+                  if (metros == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.near_me, size: 14),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text('A ${formatearDistancia(metros)} de ti', style: estilos.bodySmall),
+                      ],
+                    ),
+                  );
+                }),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   place.descripcion,

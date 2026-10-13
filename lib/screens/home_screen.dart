@@ -26,10 +26,6 @@ class HomeScreen extends GetView<PlacesController> {
       appBar: AppBar(
         title: Obx(() => Text('ExploraEC (${controller.total})')),
         actions: [
-          // TODO(sesion-04): OPCIONAL — descomenta el bloque de abajo (Paso 6B — idioma). No borres nada.
-          // Por qué: `Get.updateLocale` cambia el idioma activo y reconstruye
-          // la app entera sin `setState` ni `context`: es estado global, igual
-          // que `PlacesController`, pero manejado por el propio GetX.
           IconButton(
             icon: const Icon(Icons.translate),
             tooltip: 'idioma'.tr,
@@ -49,11 +45,6 @@ class HomeScreen extends GetView<PlacesController> {
           ),
         ],
       ),
-      // TODO(sesion-04): borra la línea de abajo y descomenta el bloque completo. (Paso 3 — reactividad con Obx)
-      // Por qué: el texto fijo de abajo nunca cambia porque nada lo
-      // observa — Obx reconstruye automáticamente su contenido cada vez
-      // que una variable Rx que lee (controller.estado, controller.lugares)
-      // cambia, sin necesitar setState ni StatefulWidget en esta pantalla.
       body: Obx(() {
         if (controller.estado.value == EstadoCarga.cargando) {
           return const LoadingView(mensaje: 'Buscando lugares cercanos...');
