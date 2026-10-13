@@ -28,12 +28,6 @@ class LocationService {
       );
     }
 
-    // TODO(sesion-05): borra la línea de abajo y descomenta el bloque completo. (Paso 3 — solicitar permiso)
-    // Por qué: dejar el permiso fijo en "denied" abajo es lo que hace
-    // que la app siempre muestre el error de permiso denegado hasta
-    // completar este paso — el bloque real primero consulta el permiso
-    // actual y, si está denegado, recién ahí lo solicita al usuario
-    // (nunca se solicita un permiso que ya fue concedido antes).
     var permiso = await Geolocator.checkPermission();
     if (permiso == LocationPermission.denied) {
       permiso = await Geolocator.requestPermission();
