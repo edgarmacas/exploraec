@@ -5,6 +5,7 @@ import 'package:exploraec/controllers/gastos_controller.dart';
 import 'package:exploraec/controllers/places_controller.dart' show EstadoCarga;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -34,6 +35,9 @@ MockClient _servidor({
       expect(req.bodyFields['username'], isNotEmpty);
       return _json({'access_token': 'tok', 'token_type': 'bearer'}, 200);
     }
+    if (ruta == '/usuarios/me') {
+      return _json({'id': 1, 'email': 'a@b.com'}, 200);
+    }
     if (ruta == '/gastos/') {
       if (falloListar != null) return _json({'detail': 'x'}, falloListar);
       expect(req.headers['authorization'], 'Bearer tok');
@@ -44,13 +48,22 @@ MockClient _servidor({
 }
 
 void main() {
-  setUp(() => Get.testMode = true);
+  setUpAll(() => Hive.init(Directory.systemTemp.createTempSync('hive_gastos').path));
+  setUp(() async {
+    Get.testMode = true;
+    await Hive.deleteFromDisk(); // cada prueba parte sin ninguna caja
+  });
 
   Future<GastosController> entrar(MockClient c, {String pass = 'clave-1234'}) async {
     final g = GastosController();
     await http.runWithClient(() => g.entrar('a@b.com', pass), () => c);
     return g;
   }
+
+  final dosGastos = [
+    {'id': 1, 'descripcion': 'Almuerzo', 'monto': 6.5, 'categoria': 'comida', 'fecha': '2026-10-05'},
+    {'id': 2, 'descripcion': 'Taxi', 'monto': 3, 'categoria': 'transporte', 'fecha': '2026-10-05'},
+  ];
 
   test('usuario nuevo: registro -> login -> lista vacía', () async {
     final g = await entrar(_servidor());
@@ -59,14 +72,12 @@ void main() {
     expect(g.gastos, isEmpty);
   });
 
-  test('éxito: carga gastos y total desde X-Total-Count (monto entero o decimal)', () async {
-    final g = await entrar(_servidor(gastos: [
-      {'id': 1, 'descripcion': 'Almuerzo', 'monto': 6.5, 'categoria': 'comida', 'fecha': '2026-10-05'},
-      {'id': 2, 'descripcion': 'Taxi', 'monto': 3, 'categoria': 'transporte', 'fecha': '2026-10-05'},
-    ]));
+  test('éxito: carga gastos y total (monto entero o decimal), sin banner', () async {
+    final g = await entrar(_servidor(gastos: dosGastos));
     expect(g.gastos.length, 2);
     expect(g.totalEnServidor.value, 2);
     expect(g.gastos[1].monto, 3.0);
+    expect(g.desdeCache.value, isFalse);
   });
 
   test('400 al registrar (correo existente) se ignora y sigue al login', () async {
@@ -80,24 +91,50 @@ void main() {
     expect(g.mensajeAuth.value, startsWith('Datos inválidos — password:'));
   });
 
-  test('sin conexión: error legible y la sesión no se pierde', () async {
-    final g = await entrar(_servidor());
-    await http.runWithClient(() => g.cargarGastos(), () => _servidor(sinRed: true));
+  test('5xx sin nada en caché: error legible', () async {
+    final g = await entrar(_servidor(falloListar: 503));
     expect(g.estado.value, EstadoCarga.error);
-    expect(g.mensajeError.value, startsWith('No hay conexión con el servidor'));
-    expect(g.sesionActiva.value, isTrue);
+    expect(g.mensajeError.value, 'El servidor tuvo un problema. Inténtalo más tarde.');
   });
 
-  test('401 al listar: vuelve al formulario y explica por qué', () async {
-    final g = await entrar(_servidor());
+  // --- Pruebas de la Sesión 7: fallan hasta completar el Paso 2 / el Paso 5 ---
+
+  test('Paso 2 — sin conexión con caché: muestra lo guardado y marca desdeCache', () async {
+    final g = await entrar(_servidor(gastos: dosGastos));
+    await http.runWithClient(() => g.cargarGastos(), () => _servidor(sinRed: true));
+    expect(g.estado.value, EstadoCarga.exito);
+    expect(g.desdeCache.value, isTrue);
+    expect(g.gastos.length, 2);
+    expect(g.ultimaSincronizacion, isNot('desconocida'));
+  });
+
+  test('Paso 2 — 5xx con caché: también cae a la caché', () async {
+    final g = await entrar(_servidor(gastos: dosGastos));
+    await http.runWithClient(() => g.cargarGastos(), () => _servidor(falloListar: 503));
+    expect(g.desdeCache.value, isTrue);
+    expect(g.gastos.length, 2);
+  });
+
+  test('Paso 2 — al volver el servidor, el banner desaparece', () async {
+    final g = await entrar(_servidor(gastos: dosGastos));
+    await http.runWithClient(() => g.cargarGastos(), () => _servidor(sinRed: true));
+    await http.runWithClient(() => g.cargarGastos(), () => _servidor(gastos: dosGastos));
+    expect(g.desdeCache.value, isFalse);
+  });
+
+  test('Paso 2 — un 401 NO usa la caché: vuelve al formulario', () async {
+    final g = await entrar(_servidor(gastos: dosGastos));
     await http.runWithClient(() => g.cargarGastos(), () => _servidor(falloListar: 401));
     expect(g.sesionActiva.value, isFalse);
+    expect(g.desdeCache.value, isFalse);
     expect(g.mensajeAuth.value, startsWith('Tu sesión caducó'));
   });
 
-  test('5xx: mensaje genérico', () async {
-    final g = await entrar(_servidor());
-    await http.runWithClient(() => g.cargarGastos(), () => _servidor(falloListar: 503));
-    expect(g.mensajeError.value, 'El servidor tuvo un problema. Inténtalo más tarde.');
+  test('Paso 5 — cerrar sesión borra la caja del usuario', () async {
+    final g = await entrar(_servidor(gastos: dosGastos));
+    expect(await Hive.boxExists('gastos_1'), isTrue);
+    await g.salir();
+    expect(await Hive.boxExists('gastos_1'), isFalse);
+    expect(g.sesionActiva.value, isFalse);
   });
 }
