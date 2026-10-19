@@ -7,6 +7,8 @@ import '../controllers/gastos_controller.dart';
 import '../controllers/places_controller.dart' show EstadoCarga;
 import '../models/gasto.dart';
 import '../services/api_exception.dart';
+import '../theme/app_theme.dart';
+import 'pantalla_con_fallo.dart';
 import '../widgets/empty_view.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
@@ -46,13 +48,26 @@ class GastosScreen extends GetView<GastosController> {
             onSelected: (valor) {
               if (valor == 'salir') auth.cerrarSesion();
               if (valor == 'invalidar') auth.invalidarTokenParaPruebas();
-                            if (valor == 'password') Get.to(() => const CambiarPasswordScreen());
+              if (valor == 'password') Get.to(() => const CambiarPasswordScreen());
+              // Solo práctica (Sesión 10, Paso 2): provocan errores a propósito.
+              if (valor == 'error_pantalla') Get.to(() => const PantallaConFallo());
+              if (valor == 'error_async') {
+                Future<void>.delayed(Duration.zero, () => throw StateError('Fallo asíncrono provocado a propósito'));
+              }
+              // Por qué: pantalla opcional con las licencias de los paquetes que usa la app.
+              // TODO(sesion-10) OPCIONAL Paso 10: descomenta la línea de abajo (abrir «Acerca de»).
+              // if (valor == 'acerca') showLicensePage(context: context, applicationName: 'ExploraEC', applicationVersion: '1.0.0');
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'password', child: Text('Cambiar contraseña')),
               const PopupMenuItem(value: 'salir', child: Text('Cerrar sesión')),
-              if (kDebugMode)
-                const PopupMenuItem(value: 'invalidar', child: Text('Invalidar token (solo práctica)')),
+              // TODO(sesion-10) OPCIONAL Paso 10: descomenta la línea de abajo (opción del menú).
+              // const PopupMenuItem(value: 'acerca', child: Text('Acerca de')),
+              if (kDebugMode) ...const [
+                PopupMenuItem(value: 'invalidar', child: Text('Invalidar token (solo práctica)')),
+                PopupMenuItem(value: 'error_pantalla', child: Text('Error de pantalla (solo práctica)')),
+                PopupMenuItem(value: 'error_async', child: Text('Error asíncrono (solo práctica)')),
+              ],
             ],
           ),
         ],
@@ -75,6 +90,7 @@ class GastosScreen extends GetView<GastosController> {
         if (controller.gastos.isEmpty) {
           return const EmptyView(mensaje: 'Aún no registras gastos en este viaje');
         }
+        final filtrados = controller.gastosFiltrados;
         return Column(
           children: [
             if (controller.desdeCache.value)
@@ -89,15 +105,48 @@ class GastosScreen extends GetView<GastosController> {
                   ),
                 ],
               ),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: controller.cargarGastos,
-                child: _buildLista(context, controller.gastos),
+            // Fila de chips para filtrar por categoría
+            _buildFiltroChips(),
+            if (filtrados.isEmpty)
+              const Expanded(
+                child: EmptyView(mensaje: 'Sin gastos en esta categoría'),
+              )
+            else
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: controller.cargarGastos,
+                  child: _buildLista(context, filtrados),
+                ),
               ),
-            ),
           ],
         );
       }),
+    );
+  }
+
+  /// Fila de chips para filtrar por categoría (Sesión 10, Paso 7). Muestra
+  /// «Todas» más cada categoría que aparezca en los gastos cargados; la lista
+  /// la calcula el controller, aquí solo se observa `categoriaFiltro`.
+  Widget _buildFiltroChips() {
+    final opciones = ['todas', ...controller.categoriasDisponibles];
+    return SizedBox(
+      height: 56,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        itemCount: opciones.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, i) {
+          final valor = opciones[i];
+          return Center(
+            child: FilterChip(
+              label: Text(valor == 'todas' ? 'Todas' : valor),
+              selected: controller.categoriaFiltro.value == valor,
+              onSelected: (_) => controller.categoriaFiltro.value = valor,
+            ),
+          );
+        },
+      ),
     );
   }
 
