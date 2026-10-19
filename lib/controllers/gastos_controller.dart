@@ -26,6 +26,25 @@ class GastosController extends GetxController {
   /// Categorías que define el backend (`GET /gastos/categorias`).
   final RxList<String> categorias = <String>[].obs;
 
+  /// Categoría seleccionada para filtrar; 'todas' muestra todos los gastos.
+  final RxString categoriaFiltro = 'todas'.obs;
+
+  /// Lista filtrada que la pantalla debe observar con `Obx`.
+  List<Gasto> get gastosFiltrados => categoriaFiltro.value == 'todas'
+      ? gastos
+      : gastos.where((g) => g.categoria == categoriaFiltro.value).toList();
+
+  /// Categorías que aparecen en los gastos cargados, en orden de aparición.
+  /// La pantalla las usa para armar los chips del filtro; como lee `gastos`,
+  /// se recalcula sola dentro del `Obx` cuando la lista cambia.
+  List<String> get categoriasDisponibles {
+    final vistas = <String>[];
+    for (final g in gastos) {
+      if (!vistas.contains(g.categoria)) vistas.add(g.categoria);
+    }
+    return vistas;
+  }
+
   /// `true` solo cuando la última carga exitosa vino de la caché local (el
   /// servidor no respondió): la UI lo usa para avisar «datos guardados».
   final RxBool desdeCache = false.obs;
@@ -126,6 +145,7 @@ class GastosController extends GetxController {
     await _repository.vaciar();
     gastos.clear();
     categorias.clear();
+    categoriaFiltro.value = 'todas';
     totalEnServidor.value = 0;
     desdeCache.value = false;
     mensajeError.value = '';
