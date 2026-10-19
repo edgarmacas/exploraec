@@ -40,5 +40,5 @@ Los dos deben terminar sin errores. Si fallan, corrige el código; no desactives
 
 <!-- Paso 6 de la práctica: escribe aquí dos reglas propias para ESTE proyecto. -->
 
-- (regla 1)
-- (regla 2)
+- Los filtros y el listado de gastos siempre se gestionan en `GastosController`; la pantalla `GastosScreen` solo observa con `Obx` y nunca filtra listas por su cuenta.
+- Toda pantalla nueva debe cubrir los tres estados: cargando (`CircularProgressIndicator`), vacío (mensaje en español) y error (vista amistosa); nunca se deja una pantalla solo con el estado de éxito.
